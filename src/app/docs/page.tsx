@@ -132,7 +132,7 @@ export default function DocsPage() {
               <div key={cat.id} className="animate-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-3 mb-4 border-b border-zinc-800 pb-2">
                   <div className="p-2 rounded-lg bg-zinc-800 border border-zinc-700">
-                    {/* CORRECCIÓN AQUI TAMBIEN */}
+                    {/* AQUI ESTÁ EL FIX CRÍTICO */}
                     {React.cloneElement(cat.icon as React.ReactElement<any>, { size: 24 })}
                   </div>
                   <div>
