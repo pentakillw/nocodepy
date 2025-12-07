@@ -16,7 +16,7 @@ export default function AnalysisPage() {
   const router = useRouter();
   const { data, columns } = useData();
 
-  // --- LÓGICA DE ESTADÍSTICAS (Memorizada para rendimiento) ---
+  // --- LÓGICA DE ESTADÍSTICAS ---
   const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
 
@@ -50,7 +50,6 @@ export default function AnalysisPage() {
 
     const qualityScore = Math.max(0, 100 - Math.round((nullCount / totalCells) * 100));
     
-    // Gráfica de Barras (Top Categorías)
     let barData: any[] = [];
     let categoryCol = textCols.length > 0 ? textCols[0] : columns[0];
     if (categoryCol) {
@@ -62,7 +61,6 @@ export default function AnalysisPage() {
         .slice(0, 8);
     }
 
-    // Gráfica de Área (Tendencia Numérica)
     let areaData: any[] = [];
     let trendCol = numericCols.length > 0 ? numericCols[0] : null;
     if (trendCol) {
@@ -217,7 +215,7 @@ function KpiCard({ title, value, icon, color, bg }: any) {
     <div className="bg-zinc-800 p-5 rounded-xl border border-zinc-700 shadow-sm hover:border-zinc-600 transition-all group cursor-default">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-xl ${bg} ${color} group-hover:scale-110 transition-transform`}>
-          {/* CORRECCIÓN AQUI: Agregamos <any> para permitir la propiedad size */}
+          {/* CORRECCIÓN FINAL AQUI: <any> para permitir 'size' */}
           {React.cloneElement(icon as React.ReactElement<any>, { size: 24 })}
         </div>
       </div>

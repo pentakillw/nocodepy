@@ -93,7 +93,6 @@ export default function DocsPage() {
       <Sidebar currentStep="docs" setCurrentStep={() => router.push('/')} />
       
       <div className="flex-1 flex flex-col min-w-0 bg-zinc-900 relative z-10 overflow-hidden h-full">
-        {/* HEADER */}
         <div className="bg-zinc-900 border-b border-zinc-800 p-6 shadow-sm z-10">
           <div className="max-w-5xl mx-auto w-full">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -127,14 +126,14 @@ export default function DocsPage() {
           </div>
         </div>
 
-        {/* CONTENIDO */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           <div className="max-w-5xl mx-auto space-y-8 pb-10">
             {filteredDocs.map((cat) => (
               <div key={cat.id} className="animate-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-3 mb-4 border-b border-zinc-800 pb-2">
                   <div className="p-2 rounded-lg bg-zinc-800 border border-zinc-700">
-                    {React.cloneElement(cat.icon as React.ReactElement, { size: 24 })}
+                    {/* CORRECCIÓN AQUI TAMBIEN */}
+                    {React.cloneElement(cat.icon as React.ReactElement<any>, { size: 24 })}
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">{cat.title}</h2>
