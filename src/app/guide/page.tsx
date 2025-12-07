@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { COLORS } from '@/utils/constants';
 import { 
-  Search, TableProperties, Eraser, Type, Calendar, 
+  Search, TableProperties, Eraser, Type,
   GitFork, Calculator, Sparkles, ChevronRight, BookOpen 
 } from 'lucide-react';
 
@@ -90,7 +90,7 @@ export default function DocsPage() {
 
   return (
     <div className={`flex h-screen ${COLORS.bg} overflow-hidden`}>
-      <Sidebar currentStep="docs" setCurrentStep={() => router.push('/')} />
+      <Sidebar currentStep="guide" setCurrentStep={() => router.push('/')} />
       
       <div className="flex-1 flex flex-col min-w-0 bg-zinc-900 relative z-10 overflow-hidden h-full">
         {/* HEADER */}
@@ -134,7 +134,8 @@ export default function DocsPage() {
               <div key={cat.id} className="animate-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-3 mb-4 border-b border-zinc-800 pb-2">
                   <div className="p-2 rounded-lg bg-zinc-800 border border-zinc-700">
-                    {React.cloneElement(cat.icon as React.ReactElement, { size: 24 })}
+                    {/* --- CORRECCIÓN AQUÍ: Agregamos <any> --- */}
+                    {React.cloneElement(cat.icon as React.ReactElement<any>, { size: 24 })}
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">{cat.title}</h2>
