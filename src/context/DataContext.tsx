@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+// Asegúrate de que la ruta a supabase sea correcta en tu proyecto
 import { supabase } from '@/lib/supabase';
 
 // Definimos tipos básicos para TypeScript
@@ -18,6 +19,7 @@ interface DataContextType {
   actions: Action[];
   history: any[];
   originalData: DataRow[];
+  originalColumns: string[]; 
   loadNewData: (newData: DataRow[], newCols: string[], fName: string) => void;
   updateDataState: (d: DataRow[], c: string[]) => void;
   updateActionsState: (newActions: Action[]) => void;
@@ -29,6 +31,9 @@ interface DataContextType {
   showToast: (message: string, type?: Toast['type']) => void;
   removeToast: (id: string) => void;
   userTier: 'free' | 'pro';
+  // --- CORRECCIÓN APLICADA AQUÍ ---
+  setUserTier: React.Dispatch<React.SetStateAction<'free' | 'pro'>>; 
+  // --------------------------------
   planLimits: { maxRows: number; maxFiles: number; exportCode: boolean };
   filesUploadedCount: number;
 }
@@ -42,11 +47,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   
   const [originalData, setOriginalData] = useState<DataRow[]>([]);
   const [originalColumns, setOriginalColumns] = useState<string[]>([]);
-
   const [fileName, setFileName] = useState<string | null>(null);
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   
-  const [history, setHistory] = useState<any[]>([]); 
+  const [history, setHistory] = useState<any[]>([]);
   const [actions, setActions] = useState<Action[]>([]); 
 
   // --- SUSCRIPCIÓN & USUARIO ---
@@ -75,7 +79,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   // --- 3. GESTIÓN DE ACCIONES ---
-  const updateDataState = (d: DataRow[], c: string[]) => { setData(d); setColumns(c); };
+  const updateDataState = (d: DataRow[], c: string[]) => { 
+      setData(d);
+      setColumns(c); 
+  };
   
   const updateActionsState = (newActions: Action[]) => {
       setActions(newActions);
@@ -85,7 +92,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const logAction = (actionObj: Action) => {
     // Guardamos el estado ANTES del cambio para poder deshacer
     setHistory(prev => [...prev, { data: [...data], columns: [...columns] }]);
-
     const actionWithTime = { ...actionObj, timestamp: new Date().toLocaleTimeString() };
     setActions(prev => {
         const updated = [...prev, actionWithTime];
