@@ -217,7 +217,8 @@ function KpiCard({ title, value, icon, color, bg }: any) {
     <div className="bg-zinc-800 p-5 rounded-xl border border-zinc-700 shadow-sm hover:border-zinc-600 transition-all group cursor-default">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-xl ${bg} ${color} group-hover:scale-110 transition-transform`}>
-          {React.cloneElement(icon as React.ReactElement, { size: 24 })}
+          {/* CORRECCIÓN AQUI: Agregamos <any> para permitir la propiedad size */}
+          {React.cloneElement(icon as React.ReactElement<any>, { size: 24 })}
         </div>
       </div>
       <div>
