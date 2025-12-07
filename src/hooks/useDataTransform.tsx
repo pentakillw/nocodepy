@@ -2,11 +2,15 @@ import { useData } from '@/context/DataContext';
 
 // --- HELPERS DE SEGURIDAD ---
 const safeStr = (val: any) => (val === null || val === undefined) ? '' : String(val);
+
 const safeNum = (val: any) => {
   if (val === null || val === undefined || val === '') return NaN;
-  const n = parseFloat(val);
+  // Reemplazamos comas por puntos si es necesario y limpiamos símbolos de moneda
+  const cleanVal = String(val).replace(/,/g, '').replace('$', '').replace('€', '');
+  const n = parseFloat(cleanVal);
   return isFinite(n) ? n : NaN;
 };
+
 const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
 
 export function useDataTransform() {
@@ -52,19 +56,22 @@ export function useDataTransform() {
                   });
                   return newRow;
               }).filter(row => Object.values(row).some(v => v !== null && v !== ''));
-              // Drop duplicates basic implementation
+              
+              // Eliminar duplicados simples
               const seen = new Set();
               newData = newData.filter(el => {
-                const duplicate = seen.has(JSON.stringify(el));
-                seen.add(JSON.stringify(el));
+                const txt = JSON.stringify(el);
+                const duplicate = seen.has(txt);
+                seen.add(txt);
                 return !duplicate;
               });
               break;
           case 'DROP_DUPLICATES':
               const seenDup = new Set();
               newData = newData.filter(el => {
-                const duplicate = seenDup.has(JSON.stringify(el));
-                seenDup.add(JSON.stringify(el));
+                const txt = JSON.stringify(el);
+                const duplicate = seenDup.has(txt);
+                seenDup.add(txt);
                 return !duplicate;
               });
               break;
@@ -77,6 +84,9 @@ export function useDataTransform() {
               break;
           case 'TRIM':
               newData = newData.map(r => ({...r, [action.col]: safeStr(r[action.col]).trim()}));
+              break;
+          case 'CLEAN_SYMBOLS':
+              newData = newData.map(r => ({...r, [action.col]: safeStr(r[action.col]).replace(/[^a-zA-Z0-9\s.-]/g, '') }));
               break;
           case 'CASE_CHANGE':
               newData = newData.map(r => {
@@ -100,19 +110,65 @@ export function useDataTransform() {
           case 'CALC_MATH':
               newData = newData.map(r => {
                   const v1=safeNum(r[action.col1]), v2=safeNum(r[action.col2]);
-                  let res=null;
+                  let res: any = null;
                   if(!isNaN(v1)&&!isNaN(v2)){
-                      if(action.op==='+') res=v1+v2; if(action.op==='-') res=v1-v2;
-                      if(action.op==='*') res=v1*v2; if(action.op==='/') res=v2!==0?v1/v2:0;
+                      if(action.op==='+') res=v1+v2; 
+                      if(action.op==='-') res=v1-v2;
+                      if(action.op==='*') res=v1*v2; 
+                      if(action.op==='/') res=v2!==0?v1/v2:0;
                   }
                   return {...r, [action.target]: res};
               });
               if(!newCols.includes(action.target)) newCols=[...newCols, action.target];
               break;
           case 'SORT':
-              newData.sort((a,b) => a[action.col] > b[action.col] ? (action.dir==='asc'?1:-1) : (action.dir==='asc'?-1:1));
+              newData.sort((a,b) => {
+                  const valA = a[action.col];
+                  const valB = b[action.col];
+                  if (valA < valB) return action.dir === 'asc' ? -1 : 1;
+                  if (valA > valB) return action.dir === 'asc' ? 1 : -1;
+                  return 0;
+              });
               break;
-          // ... (Más casos se pueden agregar aquí)
+          // --- NUEVAS ACCIONES QUE FALTABAN ---
+          case 'CHANGE_TYPE':
+              newData = newData.map(r => {
+                  let val = r[action.col];
+                  if(action.targetType === 'numeric') val = safeNum(val);
+                  else if(action.targetType === 'string') val = safeStr(val);
+                  else if(action.targetType === 'date') val = new Date(val).toISOString().split('T')[0];
+                  return { ...r, [action.col]: val };
+              });
+              break;
+          case 'FILTER':
+              newData = newData.filter(r => {
+                  const val = String(r[action.col] || '').toLowerCase();
+                  const criteria = String(action.val).toLowerCase();
+                  if(action.condition === 'contains') return val.includes(criteria);
+                  if(action.condition === 'equals') return val === criteria;
+                  if(action.condition === 'starts_with') return val.startsWith(criteria);
+                  if(action.condition === 'greater') return safeNum(r[action.col]) > safeNum(action.val);
+                  if(action.condition === 'less') return safeNum(r[action.col]) < safeNum(action.val);
+                  return true;
+              });
+              break;
+          case 'REPLACE':
+              newData = newData.map(r => ({
+                  ...r,
+                  [action.col]: String(r[action.col]) === String(action.find) ? action.replace : r[action.col]
+              }));
+              break;
+          case 'REGEX_EXTRACT':
+              try {
+                  const regex = new RegExp(action.pattern);
+                  newData = newData.map(r => {
+                      const match = String(r[action.col] || '').match(regex);
+                      return { ...r, [action.col]: match ? match[0] : null };
+                  });
+              } catch (e) {
+                  console.error("Regex inválido");
+              }
+              break;
       }
       return { data: newData, columns: newCols };
   };
@@ -143,7 +199,6 @@ export function useDataTransform() {
           return;
       }
       const newActions = actions.filter((_, idx) => idx !== indexToDelete);
-      
       const res = applyBatchTransform(originalData, originalColumns, newActions);
       
       updateDataState(res.data, res.columns);
@@ -153,95 +208,95 @@ export function useDataTransform() {
 
   // --- UI WRAPPERS (Funciones públicas) ---
   const promoteHeaders = () => { 
-      if (data.length < 1) return; 
+      if (data.length < 1) return;
       const newHeaders = columns.map(c => safeStr(data[0][c]).trim() || c); 
       const newData = data.slice(1).map(r => { 
           const nr: any = {}; 
           columns.forEach((old, i) => nr[newHeaders[i]] = r[old]); 
           return nr; 
-      }); 
+      });
       updateDataState(newData, newHeaders); 
       logAction({ type: 'PROMOTE_HEADER', description: 'Promover encabezados' }); 
   };
 
   const smartClean = () => { 
-      const action = { type: 'SMART_CLEAN' }; 
+      const action = { type: 'SMART_CLEAN' };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: 'Smart Clean' }); 
   };
 
   const dropColumn = (col: string) => { 
-      const action = { type: 'DROP_COLUMN', col }; 
+      const action = { type: 'DROP_COLUMN', col };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Eliminar ${col}` }); 
   };
 
   const renameColumn = (col: string, newVal: string) => { 
-      const action = { type: 'RENAME', col, newVal }; 
+      const action = { type: 'RENAME', col, newVal };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Renombrar ${col} -> ${newVal}` }); 
   };
 
   const trimText = (col: string) => { 
-      const action = { type: 'TRIM', col }; 
+      const action = { type: 'TRIM', col };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Trim ${col}` }); 
   };
 
   const fillDown = (col: string) => { 
-      const action = { type: 'FILL_DOWN', col }; 
+      const action = { type: 'FILL_DOWN', col };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Fill Down ${col}` }); 
   };
 
   const removeDuplicates = () => { 
-      const action = { type: 'DROP_DUPLICATES' }; 
+      const action = { type: 'DROP_DUPLICATES' };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: 'Eliminar duplicados' }); 
   };
 
   const addIndexColumn = () => { 
-      const action = { type: 'ADD_INDEX' }; 
+      const action = { type: 'ADD_INDEX' };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: 'Agregar Índice' }); 
   };
 
   const cleanSymbols = (col: string) => { 
-      const action = { type: 'CLEAN_SYMBOLS', col }; 
-      const newData = data.map(r => ({...r, [col]: safeStr(r[col]).replace(/[^a-zA-Z0-9\s]/g, '') })); 
-      updateDataState(newData, columns); 
+      const action = { type: 'CLEAN_SYMBOLS', col };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Limpiar símbolos ${col}` }); 
   };
 
   const handleCase = (col: string, mode: string) => { 
-      const action = { type: 'CASE_CHANGE', col, mode }; 
+      const action = { type: 'CASE_CHANGE', col, mode };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Case ${mode}` }); 
   };
 
   const applyMath = (col1: string, col2: string, op: string, target: string) => { 
-      const action = { type: 'CALC_MATH', col1, col2, op, target }; 
+      const action = { type: 'CALC_MATH', col1, col2, op, target };
       const res = applyActionLogic(data, columns, action); 
       updateDataState(res.data, res.columns); 
       logAction({ ...action, description: `Calc ${target}` }); 
   };
 
   const sortData = (col: string, dir: 'asc' | 'desc') => { 
-      const sorted = [...data].sort((a,b) => a[col] > b[col] ? (dir==='asc'?1:-1) : (dir==='asc'?-1:1)); 
-      updateDataState(sorted, columns); 
-      logAction({ type: 'SORT', col, dir }); 
+      const action = { type: 'SORT', col, dir };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns); 
+      logAction(action); 
   };
 
   const duplicateColumn = (col: string) => {
-      // Simula duplicación agregando una columna copia
       const newCol = `${col}_copy`;
       const newData = data.map(r => ({...r, [newCol]: r[col]}));
       updateDataState(newData, [...columns, newCol]);
@@ -273,11 +328,66 @@ export function useDataTransform() {
       logAction({ ...action, description: `Rellenar ${col} con "${val}"` });
   };
 
+  // --- LAS FUNCIONES QUE FALTABAN Y CAUSABAN EL ERROR ---
+
+  const removeTopRows = (count: number) => {
+      const action = { type: 'DROP_TOP_ROWS', count };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Eliminar ${count} filas sup.` });
+  };
+
+  const changeType = (col: string, targetType: string) => {
+      const action = { type: 'CHANGE_TYPE', col, targetType };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Tipo ${col} -> ${targetType}` });
+  };
+
+  const applyFilter = (col: string, condition: string, val: string) => {
+      const action = { type: 'FILTER', col, condition, val };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Filtro en ${col}` });
+  };
+
+  const replaceValues = (col: string, find: string, replace: string) => {
+      const action = { type: 'REPLACE', col, find, replace };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Reemplazar en ${col}` });
+  };
+
+  const splitColumn = (col: string, delim: string) => {
+      const action = { type: 'SPLIT', col, delim };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Dividir ${col}` });
+  };
+
+  const mergeColumns = (col1: string, col2: string, sep: string) => {
+      const action = { type: 'MERGE_COLS', col1, col2, sep };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Unir ${col1} + ${col2}` });
+  };
+
+  const applyRegexExtract = (col: string, pattern: string) => {
+      const action = { type: 'REGEX_EXTRACT', col, pattern };
+      const res = applyActionLogic(data, columns, action);
+      updateDataState(res.data, res.columns);
+      logAction({ ...action, description: `Regex en ${col}` });
+  };
+
+
   return {
     deleteActionFromHistory,
     applyBatchTransform,
     promoteHeaders, smartClean, dropColumn, renameColumn, trimText, fillDown,
     removeDuplicates, addIndexColumn, cleanSymbols, handleCase, applyMath, sortData,
-    duplicateColumn, reorderColumns, moveColumn, fillNullsVar
+    duplicateColumn, reorderColumns, moveColumn, fillNullsVar,
+    // --- EXPORTAMOS LAS NUEVAS FUNCIONES ---
+    removeTopRows, changeType, applyFilter, replaceValues, 
+    splitColumn, mergeColumns, applyRegexExtract
   };
 }
